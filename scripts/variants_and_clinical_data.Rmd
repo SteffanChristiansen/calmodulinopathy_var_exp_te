@@ -1,0 +1,434 @@
+```{r, echo = FALSE}
+title <- "variants_and_clinical_data"
+```
+
+---
+title: `r title`
+author: "Steffan Noe Niikanoff Christiansen"
+output: html_document
+---
+
+
+### Global options and paths
+```{r Global options and paths, echo = FALSE, message=FALSE}
+# libraries
+packages <- c("tidyverse", "patchwork", "kableExtra", "here", "knitr")
+invisible(lapply(packages, require, character.only = TRUE)) 
+
+# plotting themes
+invisible(lapply(packages, require, character.only = TRUE)) 
+
+selected_theme <- theme(axis.text.y = element_text(size = 14),
+      axis.text.x = element_text(size = 14),
+      axis.title.y = element_text(size = 16), 
+      legend.text = element_text(size = 12),
+      legend.title = element_text(size = 14),
+      strip.text = element_text(size = 12))
+
+theme_set(theme_bw() + 
+            theme(strip.background = element_rect(fill="white"),
+                  plot.title = element_text(hjust = 0.5)))
+
+# paths
+root_path <- here()
+projects_path <- str_remove(root_path, "/[A-z]+$")
+gnomAD_path <- here(projects_path, "public_wes_wgs", "data", "constraint", "gnomad_v4")
+title <- str_replace_all(title, " ", "_")
+fig_path <- here("results", "images", title, "/")
+tab_path <- here("results", "tables", title, "/")
+
+# global options
+opts_knit$set(root.dir = root_path)
+opts_chunk$set(message = FALSE,
+               dpi = 300,
+               # dev = "svg",
+               dev = "jpeg",
+               fig.width = 6,
+               fig.height = 6,
+               fig.align="center", 
+               fig.path = fig_path,
+               echo = FALSE,
+               warning = FALSE)
+
+options(scipen = 100, digits = 3, bitmapType = "cairo") 
+
+selected_colors <- list(
+  gene = c(CALM1 = "#1B9E77",
+           CALM2 = "#D95F02",
+           CALM3 = "#7570B3"))
+
+time <- lubridate::date()
+
+# helper functions
+s_table <- function (df) {
+    kableExtra::kable_styling(knitr::kable(df), bootstrap_options = c("condensed", 
+        "striped"), full_width = FALSE, font_size = 14)
+}
+
+s_names <- function (df) 
+{
+    colnames(df) <- tolower(stringr::str_replace_all(colnames(df), 
+        c(` \\| ` = "_", ` - ` = "_", ` ` = "_", `|` = "", `-` = "_", 
+            `:` = "", `\\(` = "", `\\)` = "", `\\+` = "_", `#` = "")))
+    return(df)
+}
+
+scroll_table <- function (dataframe) 
+{
+    kableExtra::scroll_box(kableExtra::kable_styling(knitr::kable(dataframe), 
+        "striped", full_width = FALSE, font_size = 14), width = "1000px", 
+        height = "500px")
+}
+```
+
+Rendering of the report was started `r time` <br> Following packages
+were loaded: `r packages` <br><br>
+
+
+### Clinical characteristics of missense carriers
+```{r Clinical characteristics of missense carriers, fig.width = 6, fig.height = 6, out.width = "100%", eval = TRUE}
+cam_genes <- c("CALM1", "CALM2", "CALM3")
+clin_char_df <- data.frame(gene = cam_genes,
+                           n_carriers = c(52, 53, 35),
+                           cardiac_events = c(46, 37, 20),
+                           MAE = c(34, 30, 13)) %>% 
+  mutate(gene = factor(gene),
+         frac_CE = cardiac_events/n_carriers,
+         frac_MAE = MAE/n_carriers,
+         free_from_CE = n_carriers - cardiac_events,
+         free_from_MAE = n_carriers - MAE)
+
+clin_char_long <- clin_char_df %>%
+  pivot_longer(cols = c(frac_CE, frac_MAE), names_to = "event_type", values_to = "fraction")
+
+p1 <- clin_char_long %>% 
+  mutate(event_type = str_replace_all(event_type, 
+                                      c("frac_CE" = "Cardiac events", 
+                                        "frac_MAE" = "Major arrhythmic events"))) %>% 
+  ggplot(aes(x = gene, y = fraction, fill = gene)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(face = "italic",
+                                   margin = margin(4, 0, 0, 0),
+                                   hjust = 0.5),
+        legend.position = "none") +
+  facet_wrap(~event_type) +
+  scale_fill_manual(values = selected_colors$gene) +
+  labs(x = "",
+       y = "Fraction of missense carriers with symptoms") +
+  selected_theme +
+  ggtitle("International Calmodulinopathy Registry (v2)")
+
+p1
+
+clin_char_df %>% 
+  kable() %>% 
+  kableExtra::kable_styling(., bootstrap_options = c("condensed", 
+        "striped"), full_width = FALSE, font_size = 14)
+```
+
+##### Test Cardic events
+```{r fig.width = 6, fig.height = 6, out.width = "100%", eval = TRUE}
+test_CE <- chisq.test(clin_char_df %>% select(cardiac_events, free_from_CE))
+test_CE
+
+# test_CE$observed
+# test_CE$expected
+
+# row_totals <- rowSums(test_CE$observed)
+# col_totals <- colSums(test_CE$observed)
+# grand_total <- sum(test_CE$observed)
+# 
+# expected_manual <- outer(row_totals, col_totals) / grand_total
+# expected_manual 
+# 
+# identical(expected_manual, test_CE$expected) # identical results
+# 
+# chi_sq <- sum((test_CE$observed - expected_manual)^2 / expected_manual) # chi squared statistic
+# df <- (nrow(test_CE$observed) - 1) * (ncol(test_CE$observed) - 1) # degrees of freedom
+# 1 - pchisq(chi_sq, df)
+
+# fisher.test(clin_char_df %>% select(cardiac_events, free_from_CE))
+```
+<br><br>
+  
+
+### Any events (with subtypes)
+```{r Any events (with subtypes), fig.width = 7, fig.height = 6, out.width = "100%"}
+p1 <- clin_char_long %>% 
+  filter(event_type != "frac_MAE") %>% 
+  mutate(event_type = str_replace_all(event_type, 
+                                      c("frac_CE" = "Cardiac events", 
+                                        "frac_MAE" = "Major arrhythmic events")),
+         numbers_MAE = paste0(MAE, "/", n_carriers),
+         numbers_CE = paste0(cardiac_events, "/", n_carriers)) %>% 
+  ggplot(aes(x = gene, y = fraction, fill = gene)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = numbers_CE),
+            position = position_stack(vjust = 1.05), # or vjust = 1.05 for above bars
+            # color = "black", size = 8) + # settings for poster
+            color = "black", size = 4) + # settings for paper
+   labs(x = "", 
+        y = "Missense carriers with any cardiac event",
+        title = "All carriers (n = 140)") +
+  selected_theme +
+  theme(axis.text.x = element_text(face = "italic",
+                                   hjust = 0.5),
+        legend.position = "none") + 
+  scale_y_continuous(
+    labels = scales::label_percent(), 
+    breaks = seq(0, 1, by = 0.250),
+    limits = c(0, 1))
+
+clin_char_phenotyped <- data.frame(
+  gene = cam_genes,
+  n_carriers = c(18, 26, 30, 20, 11, 5),
+  MAE = c(14, 13, 9, 10, 6, 4),
+  CE = c(16, 16, 15, 20, 8, 5),
+  subgroup = c("LQTS", "LQTS", "LQTS", "CPVT", "CPVT", "CPVT")) %>% 
+  mutate(frac_MAE = MAE/n_carriers,
+         frac_CE = CE/n_carriers)
+
+clin_char_phenotyped_long <- clin_char_phenotyped %>%
+  pivot_longer(cols = c(frac_CE, frac_MAE), names_to = "event_type", values_to = "fraction") %>% 
+  mutate(subgroup = factor(subgroup, levels = c("LQTS", "CPVT")),
+         # event_type = str_replace_all(event_type, 
+         #                              c("frac_CE" = "Cardiac events", 
+         #                                "frac_MAE" = "Major arrhythmic events")),
+         numbers_MAE = paste0(MAE, "/", n_carriers),
+         numbers_CE = paste0(CE, "/", n_carriers))
+
+
+p2 <- clin_char_phenotyped_long %>% 
+  filter(event_type != "frac_MAE") %>% 
+  filter(subgroup == "LQTS") %>% 
+  ggplot(aes(x = gene, y = fraction, fill = gene)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = numbers_CE),
+            position = position_stack(vjust = 1.1), # or vjust = 1.05 for above bars
+            color = "black", size = 4) +
+  selected_theme +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) 
+
+p3 <- clin_char_phenotyped_long %>% 
+  filter(event_type != "frac_MAE") %>% 
+  filter(subgroup == "CPVT") %>% 
+  ggplot(aes(x = gene, y = fraction, fill = gene)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = numbers_CE),
+            position = position_stack(vjust = 1.08), # or vjust = 1.05 for above bars
+            color = "black", size = 4)  +
+  selected_theme +
+  theme(axis.text.x = element_text(face = "italic",
+                                   hjust = 0.5),
+        legend.position = "none")
+
+combined <- p2 + ggtitle("LQTS phenotype (n = 74)") +
+  p3 + ggtitle("CPVT phenotype (n = 36)") + 
+  plot_layout(ncol = 1, guides = "collect",  axes = "collect") &
+  labs(x = "",
+       y = "") &
+  scale_y_continuous(
+    labels = scales::label_percent(), 
+    breaks = seq(0, 1, by = 0.250)) 
+
+p4 <- p1 +
+  combined + 
+  plot_layout(ncol = 2, guides = "collect",  axes = "collect") &
+  plot_annotation(title = "International Calmodulinopathy Registry (v2)") & 
+  scale_fill_manual(values = selected_colors$gene) &
+  theme(legend.position = "none") 
+
+p4
+```
+<br><br>
+
+```{r Any events (with subtypes) 7_5, fig.width = 7, fig.height = 5, out.width = "100%"}
+p4
+```
+
+```{r Any event 5_6, fig.width = 5, fig.height = 6, out.width = "100%"}
+p1 <- p1 + 
+  ggtitle("International Calmodulinopathy Registry (v2)") & 
+  scale_fill_manual(values = selected_colors$gene) &
+  theme(legend.position = "none") 
+# p1
+
+selected_theme_poster <- theme(
+  axis.text.y = element_text(size = 18),
+  axis.text.x = element_text(size = 18),
+  axis.title.y = element_text(size = 20), 
+  axis.title.x = element_text(size = 20), 
+  legend.text = element_text(size = 18),
+  legend.title = element_text(size = 20),
+  title = element_text(size = 18))
+
+# p1 + selected_theme_poster
+```
+<br><br>
+
+```{r Any event 7_7, fig.width = 7, fig.height = 7, out.width = "100%"}
+p1 + selected_theme_poster
+```
+<br><br>
+  
+#### Test subtypes
+```{r Test subtypes, fig.width = 10, fig.height = 6, out.width = "100%"}
+clin_char_phenotyped <- clin_char_phenotyped %>% 
+  mutate(free_from_CE = n_carriers - CE,
+         free_from_MAE = n_carriers - MAE)
+# clin_char_phenotyped %>%
+#   group_by(subgroup) %>% 
+#   reframe(sum = sum(n_carriers))
+
+t1 <- clin_char_phenotyped %>% 
+  filter(subgroup == "LQTS") %>% 
+  select(free_from_CE, CE)
+
+t1
+fisher.test(t1)
+
+t2 <- clin_char_phenotyped %>% 
+  filter(subgroup == "CPVT") %>% 
+  select(free_from_CE, CE)
+t1
+fisher.test(t2)
+```
+<br><br>
+
+
+#### Comparison any event and MAE
+```{r Comparison any event and MAE, fig.width = 6, fig.height = 6, out.width = "100%"}
+p1 <- clin_char_long %>% 
+  filter(event_type != "frac_MAE") %>% 
+  mutate(event_type = str_replace_all(event_type, 
+                                      c("frac_CE" = "Cardiac events", 
+                                        "frac_MAE" = "Major arrhythmic events")),
+         numbers_MAE = paste0(MAE, "/", n_carriers),
+         numbers_CE = paste0(cardiac_events, "/", n_carriers)) %>% 
+  ggplot(aes(x = gene, y = fraction, fill = gene)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = numbers_CE),
+            position = position_stack(vjust = 1.05), # or vjust = 1.05 for above bars
+            color = "black", size = 5) 
+
+p5 <- clin_char_long %>% 
+  filter(event_type != "frac_CE") %>% 
+  mutate(event_type = str_replace_all(event_type, 
+                                      c("frac_CE" = "Cardiac events", 
+                                        "frac_MAE" = "Major arrhythmic events")),
+         numbers_MAE = paste0(MAE, "/", n_carriers),
+         numbers_CE = paste0(cardiac_events, "/", n_carriers)) %>% 
+  ggplot(aes(x = gene, y = fraction, fill = gene)) + 
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = numbers_MAE),
+            position = position_stack(vjust = 1.05), # or vjust = 1.05 for above bars
+            color = "black", size = 5)
+
+p1 + ggtitle("Any cardiac event") +
+  p5 + ggtitle("Major arrhythmic event") + 
+  plot_layout(ncol = 2, guides = "collect",  axes = "collect") &
+  labs(x = "",
+       y = "Symptoms among missense variant carriers") &
+  scale_y_continuous(
+    labels = scales::label_percent(), 
+    breaks = seq(0, 1, by = 0.250),
+    limits = c(0,1))  &
+  selected_theme &
+  scale_fill_manual(values = selected_colors$gene) &
+  theme(axis.text.x = element_text(face = "italic",
+                                   hjust = 0.5),
+        legend.position = "none") 
+```
+<br><br>
+
+### GnomAD variants
+```{r}
+v4 <- read_tsv(here(gnomAD_path, "gnomad.v4.1.constraint_metrics.tsv"))
+v4_cam <- v4 %>% 
+  filter(str_detect(transcript, "ENST") & mane_select == TRUE) %>% 
+  filter(gene %in% cam_genes)
+
+plot_oe <- function(subset_long) {
+  ggplot(subset_long, aes(x = gene, y = oe, color = group)) +
+    geom_point(position = position_dodge(width = 0.4), size = 3) +
+    geom_linerange(aes(ymin = oe_lower, ymax = oe_upper),
+                   position = position_dodge(width = 0.4), linewidth = 1) +
+    theme(axis.text.x = element_text(face = "italic",
+                                     # angle = 45,
+                                     # hjust = 1,
+                                     margin = margin(4, 0, 0, 0),
+                                     hjust = 0.5)) +
+    scale_color_manual(values = c("orange", "darkred", "#525252")) +
+    labs(x = "",
+         y = "Observed/expected",
+         color = "Functional class \nof mutation") +
+    geom_hline(yintercept = 1, linetype = "dashed", color = "black", linewidth = 1)
+}
+
+v4_cam_conf_scores <- left_join(
+  v4_cam %>% 
+    select(gene, mis.oe_ci.lower, lof.oe_ci.lower, syn.oe_ci.lower) %>% 
+    pivot_longer(cols = -gene, names_to = "group", values_to = "oe_lower") %>% 
+    mutate(group = str_remove(group, "_ci.lower")),
+  v4_cam %>% 
+    select(gene, mis.oe_ci.upper, lof.oe_ci.upper, syn.oe_ci.upper) %>% 
+    pivot_longer(cols = -gene, names_to = "group", values_to = "oe_upper") %>% 
+    mutate(group = str_remove(group, "_ci.upper")),
+  by = c("gene", "group")) %>% 
+  mutate(gene = factor(gene, levels = cam_genes))
+  
+v4_cam_conf_scores <- left_join(
+  v4_cam_conf_scores,
+  v4_cam %>% 
+    select(gene, mis.oe, lof.oe, syn.oe) %>% 
+    pivot_longer(cols = -gene, names_to = "group", values_to = "oe"),
+  by = c("gene", "group")) %>% 
+  mutate(group = str_replace_all(group, c("lof.oe" = "Loss-of-function",
+                                          "mis.oe" = "Missense",
+                                          "syn.oe" = "Synonymous")))
+```
+
+```{r GnomAD variants 5_6, fig.width = 5, fig.height = 6, out.width = "100%"}
+p1 <- v4_cam_conf_scores %>% 
+  filter(group != "Synonymous") %>% 
+  plot_oe + 
+  selected_theme
+# p1 
+```
+
+```{r GnomAD variants 5_5, fig.width = 5, fig.height = 5, out.width = "100%"}
+p1
+```
+
+
+```{r GnomAD variants 7_7, fig.width = 7, fig.height = 7, out.width = "100%"}
+p1 
+p1 + ggtitle("gnomAD (v4.1)") + selected_theme_poster
+```
+<br><br>
+
+Scores are shown below:
+```{r}
+v4_cam_conf_scores %>% s_table
+```
+<br><br>
+  
+
+
+------------------------------------------------------------------------
+```{r computetime, echo=FALSE}
+time <- lubridate::date()
+```
+Report was finished `r time` <br>
+
+
+```{r}
+sessionInfo()
+```
+
+
+```{r rendering while keeping objects in global environment, echo = FALSE, eval=FALSE}
+rmarkdown::render("scripts/variants_and_clinical_data.Rmd", clean = TRUE, output_dir = "reports/")
+```
+<br>
