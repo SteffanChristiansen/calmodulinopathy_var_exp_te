@@ -384,17 +384,16 @@ v4_cam_conf_scores <- left_join(
     select(gene, mis.oe, lof.oe, syn.oe) %>% 
     pivot_longer(cols = -gene, names_to = "group", values_to = "oe"),
   by = c("gene", "group")) %>% 
-  mutate(group = str_replace_all(group, c("lof.oe" = "Loss-of-function",
+  mutate(group = str_replace_all(group, c(
+    # "lof.oe" = "Loss-of-function",
+    "lof.oe" = "Predicted \nloss-of-function",
                                           "mis.oe" = "Missense",
                                           "syn.oe" = "Synonymous")))
-```
-
-```{r GnomAD variants 5_6, fig.width = 5, fig.height = 6, out.width = "100%"}
 p1 <- v4_cam_conf_scores %>% 
   filter(group != "Synonymous") %>% 
+  mutate(group = factor(group, levels = c("Predicted \nloss-of-function", "Missense"))) %>% 
   plot_oe + 
-  selected_theme
-# p1 
+  selected_theme 
 ```
 
 ```{r GnomAD variants 5_5, fig.width = 5, fig.height = 5, out.width = "100%"}
