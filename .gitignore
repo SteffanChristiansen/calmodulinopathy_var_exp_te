@@ -8,3 +8,4 @@ results/
 doc/
 scripts/sandbox.R
 scripts/template.Rmd
+scripts/compositional_data_analysis.Rmd

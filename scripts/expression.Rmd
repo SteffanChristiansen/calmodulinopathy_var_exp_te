@@ -12,7 +12,7 @@ output: html_document
 ### Global options and paths
 ```{r Global options and paths, echo = FALSE, message=FALSE}
 # libraries
-packages <- c("tidyverse", "patchwork", "kableExtra", "here", "knitr")
+packages <- c("tidyverse", "patchwork", "kableExtra", "here", "knitr", "ggtranscript", "scales")
 
 invisible(lapply(packages, require, character.only = TRUE)) 
 theme_set(theme_bw() + 
@@ -85,7 +85,16 @@ selected_colors <- list(
            CALM2 = "#D95F02",
            CALM3 = "#7570B3"), 
   tissue = setNames(colors$color, colors$tissueSiteDetailId),
-  measure = c("PDUI adjusted counts per nt" = "#A6761D", "Counts per nt" = "#666666"))
+  measure = c("PDUI adjusted counts per nt" = "#A6761D", "Counts per nt" = "#666666"), 
+  # type = c(five_prime_UTR = "#9E0142",
+  #          CDS = "#FDAE61",
+  #          three_prime_UTR = "#66C2A5"),
+  type = c(five_prime_UTR = "#666666",
+           CDS = "#66A61E",
+           three_prime_UTR = "#A6761D"),
+  MANE_status = c("MANE" = "red",
+                  "non-MANE" = "grey")
+  )
 
 selected_theme_poster <- theme(
   axis.text.y = element_text(size = 18),
@@ -95,6 +104,13 @@ selected_theme_poster <- theme(
   legend.text = element_text(size = 18),
   legend.title = element_text(size = 20),
   title = element_text(size = 18))
+
+selected_theme <- theme(axis.text.y = element_text(size = 14),
+      axis.text.x = element_text(size = 14),
+      axis.title.y = element_text(size = 16), 
+      legend.text = element_text(size = 12),
+      legend.title = element_text(size = 14),
+      strip.text = element_text(size = 12))
 ```
 
 Rendering of the report was started `r time` <br> Following packages
@@ -199,6 +215,82 @@ CALM_V26_gencode %>%
   filter(type == "transcript") %>%
   dplyr::count(gene_name, gene_id) %>% 
   s_table()
+```
+<br><br>
+
+### Visualised protein-coding transcripts
+```{r Visualised protein-coding transcripts, fig.width = 10, fig.height = 6, out.width = "100%"}
+# selected_colors <- list(
+#   gene = c(CALM1 = "#1B9E77",
+#            CALM2 = "#D95F02",
+#            CALM3 = "#7570B3"),
+#   type = c(five_prime_UTR,
+#            CDS,
+#            three_prime_UTR))
+
+plot_calm <- function(selected_gene) {
+  
+  exons <- CALM_V26_gencode %>% 
+    filter(type == "exon" & gene_name == selected_gene & 
+             transcript_type == "protein_coding") 
+  
+  cds <- CALM_V26_gencode %>%
+    dplyr::filter(type == "CDS" & gene_name == selected_gene & 
+                    transcript_type == "protein_coding") 
+  
+  utrs <- CALM_V26_gencode %>% 
+    filter(type %in% c("five_prime_UTR", "three_prime_UTR") & 
+             gene_name == selected_gene & transcript_type == "protein_coding") 
+  
+  exons %>%
+    ggplot(aes(xstart = start,
+               xend = end,
+               y = transcript_id)) +
+    # geom_range(aes(fill = type),
+    #            height = 0.25) +
+    geom_range(data = cds,
+               aes(fill = type)) +
+    geom_range(data = utrs,
+               aes(fill = type),
+               height = 0.25) +
+    geom_intron(data = to_intron(exons, "transcript_id"),
+                aes(strand = strand),
+                arrow.min.intron.length = arrow_treshold) +
+    labs(x = "",
+         # y = "Transcript ID",
+         y = "",
+         fill = "Transcript type") +
+    scale_x_continuous(labels = comma) +
+    # scale_fill_manual(values = selected_colors$type) +
+    scale_fill_manual(values = selected_colors$type,
+                    labels = c("CDS" = "CDS", 
+                               "three_prime_UTR" = "3'-UTR", 
+                               "five_prime_UTR" = "5'-UTR"))
+}
+arrow_treshold = 10000
+```
+
+#### CALM1 protein coding
+```{r CALM1 proteincoding, fig.width = 8, fig.height = 3, out.width = "80%"}
+plot_calm("CALM1") + 
+  ggtitle(bquote(italic("CALM1"))) + 
+  selected_theme
+```
+<br><br>
+
+#### CALM2 protein coding
+```{r CALM2 protein coding, fig.width = 8, fig.height = 3, out.width = "80%"}
+plot_calm("CALM2") + 
+  ggtitle(bquote(italic("CALM2"))) + 
+  selected_theme
+```
+<br><br>
+
+#### CALM3 protein coding
+```{r CALM3 protein coding, fig.width = 8, fig.height = 3, out.width = "80%"}
+plot_calm("CALM3") + 
+  ggtitle(bquote(italic("CALM3"))) + 
+  selected_theme
 ```
 <br><br>
 
@@ -307,7 +399,17 @@ df_fractions %>%
 ```
 <br><br>
 
-#### MANE expression per gene and tissue
+#### MANE expression per gene and tissue (among protein coding)
+```{r}
+protein_coding_transcripts <- CALM_V26_gencode %>% 
+  filter(transcript_type == "protein_coding") %>% 
+  pull(transcript_id) %>% 
+  unique()
+
+CALM_tidy_TPM <- CALM_tidy_TPM %>% 
+  filter(transcript %in% protein_coding_transcripts)
+```
+
 ```{r}
 total_TPM <- CALM_tidy_TPM %>% 
   group_by(sample_id, gene) %>% 
@@ -375,7 +477,59 @@ t1_CALM3 %>% s_table()
 ```
 Median of medians is `r median(t1_CALM3$median)` (range: `r min(t1_CALM3$min)`-`r max(t1_CALM3$max)`) <br><br>
 
+#### MANE cardiac tissue
+```{r MANE cardiac tissue 8_4, fig.width = 8, fig.height = 3, out.width = "100%"}
+plot_mane_fraction <- function(gene_name){
+  MANE_transcript <- CALM_tidy_TPM %>% 
+    filter(gene == gene_name) %>% 
+    filter(MANE_status == "MANE") %>% 
+    pull(transcript) %>% 
+    unique()
 
+    temp_df <- CALM_tidy_TPM %>%
+    filter(tissue  == "heart_left_ventricle") %>% 
+    filter(transcript == MANE_transcript) %>%
+    select(sample_id, tissue, gene, transcript, fraction_TPM, MANE_status) %>%
+    group_by(sample_id, tissue, gene, MANE_status)
+  
+  temp_df %>%
+    ggplot(aes(y = fraction_TPM, x = transcript)) +
+    # ggplot(aes(y = fraction_TPM, x = transcript, color = MANE_status)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.2) +
+    geom_jitter(width = 0.2, size = 2.5, alpha = 1, height = 0) +
+    # scale_color_manual(values = selected_colors$MANE_status) +
+    labs(
+      x = "",
+      title = bquote(~italic(.(gene_name))),
+      # y = "Percentage expressed \nby MANE transcripts",
+      y = "Relative expression")
+}
+p1 <- plot_mane_fraction("CALM1") 
+p2 <- plot_mane_fraction("CALM2") 
+p3 <- plot_mane_fraction("CALM3") 
+
+p_comb <- p1 + p2 + p3 + plot_layout(ncol = 3, guides = "collect", axes = "collect") &
+  scale_y_continuous(
+    limits = c(0.975, 1),
+                     breaks = seq(0.975, 1, by = 0.005),
+                     labels = scales::percent_format()) &
+  theme(axis.text.x = element_text(size = 12, angle = 0, hjust = 0.5),
+        axis.text.y = element_text(size = 14),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        panel.spacing = unit(0.5, "cm")) &
+  theme(legend.position = "none")
+
+p_comb
+```
+
+```{r MANE cardiac tissue 7_3, fig.width = 7, fig.height = 3, out.width = "100%"}
+p_comb
+```
+
+<br><br>
 
 ### Investigation of PDUI values
 PDUI: percentage of distal poly(A) site usage index (PDUI) value <br>
@@ -413,18 +567,18 @@ for (tissue in dir(pdui_dir)){
 }
 
 tissue_count <- combined_pdui %>% 
-  count(tissue) %>% 
+  dplyr::count(tissue) %>% 
   mutate(samples_per_tissue = n/length(calm_transcript_id)) %>% 
   dplyr::select(-n)
 
 sample_count <- combined_pdui %>% 
-  count(sample_name) %>% 
+  dplyr::count(sample_name) %>% 
   mutate(samples_per_id = n/length(calm_transcript_id)) %>% 
   dplyr::select(-n)
 
 sample_brain_count <- combined_pdui %>% 
   mutate(brain_sample = str_detect(tissue, "Brain")) %>% 
-  count(sample_name, brain_sample) %>%
+  dplyr::count(sample_name, brain_sample) %>%
   filter(brain_sample == TRUE) %>% 
   mutate(brain_samples_per_id = n/length(calm_transcript_id)) %>% 
   dplyr::select(-c(brain_sample, n))
@@ -436,7 +590,7 @@ sample_count <- left_join(sample_count,
 
 rm(sample_brain_count)
 ```
-In accordance with 2021 NAR paper, there are data from `r combined_pdui %>% count(sample_name, tissue) %>% nrow()` samples and `r nrow(sample_count)` individuals. `r nrow(tissue_count)` tissues are represented. The number of brain samples per individual ranges from `r min(sample_count$brain_samples_per_id)` to `r max(sample_count$brain_samples_per_id)` (n individuals with brain samples: `r sample_count %>% filter(brain_samples_per_id > 0) %>% nrow()`). <br>
+In accordance with 2021 NAR paper, there are data from `r combined_pdui %>% dplyr::count(sample_name, tissue) %>% nrow()` samples and `r nrow(sample_count)` individuals. `r nrow(tissue_count)` tissues are represented. The number of brain samples per individual ranges from `r min(sample_count$brain_samples_per_id)` to `r max(sample_count$brain_samples_per_id)` (n individuals with brain samples: `r sample_count %>% filter(brain_samples_per_id > 0) %>% nrow()`). <br>
 
 Data are available for following tissues:
 ```{r}
@@ -477,33 +631,33 @@ return_wide <- function(long_df, trans_id1, trans_id2) {
     mutate(difference = get(paste(trans_id1))-get(paste(trans_id2)))
 }
 
-plot_scatter <- function(df, trans_id1, trans_id2) {
-  temp_df <- return_wide(df, trans_id1, trans_id2)
-  
-  gene_name <- temp_df %>%
-    pull(gene) %>%
-    unique
-
-  temp_df %>%
-    ggplot(., aes(x = get(paste(trans_id1)), 
-                  y = get(paste(trans_id2)), 
-                  color = gene)) +
-    geom_point() +
-    theme(legend.position = "none") + 
-    scale_color_manual(values = selected_colors$gene) +
-    geom_abline(intercept = 0, slope = 1, color = "darkgrey", linetype= "dashed", linewidth = 0.75) +
-    scale_x_continuous(limits = x_limits) +
-    scale_y_continuous(limits = y_limits) +
-    labs(title = gene_name, 
-         x = trans_id1,
-         y = trans_id2) +
-    coord_fixed()
-}
-
-p1 <- plot_scatter(combined_pdui, "NM_001363670", "NM_006888")
-p2 <- plot_scatter(combined_pdui, "NM_001743", "NM_001305626")
-
-p1 + p2
+# plot_scatter <- function(df, trans_id1, trans_id2) {
+#   temp_df <- return_wide(df, trans_id1, trans_id2)
+#   
+#   gene_name <- temp_df %>%
+#     pull(gene) %>%
+#     unique
+# 
+#   temp_df %>%
+#     ggplot(., aes(x = get(paste(trans_id1)), 
+#                   y = get(paste(trans_id2)), 
+#                   color = gene)) +
+#     geom_point() +
+#     theme(legend.position = "none") + 
+#     scale_color_manual(values = selected_colors$gene) +
+#     geom_abline(intercept = 0, slope = 1, color = "darkgrey", linetype= "dashed", linewidth = 0.75) +
+#     scale_x_continuous(limits = x_limits) +
+#     scale_y_continuous(limits = y_limits) +
+#     labs(title = gene_name, 
+#          x = trans_id1,
+#          y = trans_id2) +
+#     coord_fixed()
+# }
+# 
+# p1 <- plot_scatter(combined_pdui, "NM_001363670", "NM_006888")
+# p2 <- plot_scatter(combined_pdui, "NM_001743", "NM_001305626")
+# 
+# p1 + p2
 ```
 <br><br>
 
@@ -530,7 +684,7 @@ plot_pdui_distribution <- function(selected_gene) {
     filter(gene == selected_gene) %>% 
     ggplot(., aes(x = tissue, y = pdui, color = tissue)) +
     geom_boxplot(outlier.shape = NA) + 
-    geom_jitter(width = 0.05, size = 0.15, alpha = .25) +
+    geom_jitter(width = 0.05, size = 0.15, alpha = .25, height = 0) +
     theme(legend.position = "none", 
           plot.margin = unit(c(0.2, 0.2, 0.2, 1.5), "cm"),
           plot.title = element_text(size = 12),
@@ -575,11 +729,11 @@ LV_pdui <- combined_pdui %>%
 ```
 Data are available for `r LV_pdui %>% distinct(sample_name) %>% nrow()` LV samples.
 
-```{r boxplot pdui lv, fig.width = 4, fig.height = 7, out.width = "80%"}
-LV_pdui %>% 
+```{r boxplot pdui lv, fig.width = 4, fig.height = 4, out.width = "80%"}
+p1 <- LV_pdui %>% 
   ggplot(., aes(x = gene, y = pdui, color = gene)) +
   geom_boxplot(outlier.shape = NA) +
-  geom_jitter(width = 0.25, size = 0.5, alpha = .25) +
+  geom_jitter(width = 0.35, size = 1, alpha = .15, height = 0) +
   theme(legend.position = "none",
         axis.text.x = element_text(
           face = "italic", 
@@ -588,13 +742,20 @@ LV_pdui %>%
           hjust = 0.5,
           size = 14),
         axis.text.y = element_text(size = 14),
-        axis.title.y = element_text(size = 16)) + 
+        axis.title.y = element_text(size = 16),
+        axis.title.x = element_text(size = 16)) + 
   scale_color_manual(values = selected_colors$gene) +
   labs(
     y = "Percentage of distal poly(A) \n site usage index (PDUI)",
        # y = "PDUI",
        x = "") 
+p1 
 ```
+
+```{r boxplot pdui lv 5_4, fig.width = 5, fig.height = 4, out.width = "80%"}
+p1
+```
+
 
 ```{r}
 LV_pdui %>% 
@@ -760,7 +921,7 @@ combined_v8_v9 <- inner_join(
   combined_pdui_adj,
   by = c("sample_name", "smtsd", "gene"))
 
-# combined_v8_v9 %>% count(smtsd)
+# combined_v8_v9 %>% dplyr::count(smtsd)
 
 combined_v8_v9_long <- combined_v8_v9 %>% 
   pivot_longer(
@@ -834,7 +995,7 @@ combined_v8_v9_long <- combined_v8_v9_long %>%
 p3 <- combined_v8_v9_long %>% 
   ggplot(aes(x = measure, y = distance)) +
   geom_boxplot(outlier.shape = NA) + 
-  geom_jitter(aes(color = measure), width = 0.20, alpha = .75, size = 1.5) +
+  geom_jitter(aes(color = measure), width = 0.20, alpha = .75, size = 1.5, height = 0) +
   scale_color_manual(values = selected_colors$measure, 
                      labels = function(x) str_replace_all(x, "counts", "\ncounts")) + 
   facet_wrap(~gene) + 
@@ -933,19 +1094,6 @@ wilcoxon_signed_ranked_p_values %>%
   
 #### LV expression
 ```{r LV expression, fig.width = 8, fig.height = 5, out.width = "100%"}
-plot_expression <- function(expression_measure) {
-  combined_pdui %>% 
-    filter(str_detect(tissue, "Left")) %>% 
-    ggplot(., aes(x = gene, y = get(paste(expression_measure)), color = gene)) +
-    geom_boxplot(outlier.shape = NA) + 
-    geom_jitter(width = 0.05, size = 0.15, alpha = .25) +
-    scale_color_manual(values = selected_colors$gene) +
-    labs(y = expression_measure,
-         x = "")
-}
-p1 <- plot_expression("counts_per_nt")
-p2 <- plot_expression("counts_per_nt_pdui_adj")
-
 combined_pdui_LV <- combined_pdui %>% 
   filter(str_detect(tissue, "Left")) %>% 
   dplyr::select(gene, sample_name, counts_per_nt, counts_per_nt_pdui_adj) %>% 
@@ -978,7 +1126,7 @@ combined_pdui_LV_long <- combined_pdui_LV %>%
 p3 <-  combined_pdui_LV_long %>% 
   ggplot(., aes(x = gene, y = relative_count, color = gene)) +
   geom_violin(draw_quantiles = c(0.5)) +
-  geom_jitter(width = 0.20, size = 0.50, alpha = 0.5) +
+  geom_jitter(width = 0.20, size = 0.50, alpha = 0.5, height = 0) +
   scale_color_manual(values = selected_colors$gene) +
   theme(legend.text = element_text(face = "italic"),
         axis.text.x = element_text(face = "italic", size = 14, angle = 0, hjust = 0.5),
@@ -994,16 +1142,141 @@ p3 <-  combined_pdui_LV_long %>%
 p3 + theme(strip.text = element_text(size = 14))
 ```
 
+```{r LV expression w4_h6, fig.width = 4, fig.height = 4, out.width = "80%"}
+combined_pdui_LV_long %>% 
+  filter(measure == "PDUI adjusted counts per nt") %>% 
+  ggplot(., aes(x = gene, y = relative_count, color = gene)) +
+  # geom_boxplot(outlier.shape = NA) +
+    geom_violin(draw_quantiles = c(0.5)) +
+  geom_jitter(width = 0.35, size = 1, alpha = 0.15, height = 0) +
+  scale_color_manual(values = selected_colors$gene) +
+  theme(legend.text = element_text(face = "italic"),
+        axis.text.x = element_text(face = "italic", size = 14, angle = 0, hjust = 0.5),
+        axis.text.y = element_text(size = 14),
+        axis.title.y = element_text(size = 16),
+        axis.title.x = element_text(size = 16)) + 
+  scale_y_continuous(expand = c(0, 0),
+                     breaks = seq(0, 1, by = 0.2), 
+                     labels = scales::percent_format(),
+                     limits = c(0,0.7)) + 
+  labs(y = "Relative gene expression",
+       x = "") + 
+  theme(legend.position = "none") 
+```
 
 ```{r}
-combined_pdui_LV_long %>% 
+t1 <- combined_pdui_LV_long %>% 
   group_by(gene, measure) %>% 
   reframe(median_relative_count = median(relative_count),
           mean_relative_count = mean(relative_count)) %>% 
+  arrange(measure) 
+
+CALM1_CALM2_diff <-  t1$median_relative_count[4]-t1$median_relative_count[5]
+
+CALM1_CALM3_diff <- t1$median_relative_count[4]-t1$median_relative_count[6]
+
+CALM2_CALM3_diff <- t1$median_relative_count[5]-t1$median_relative_count[6]
+
+t1 %>% 
   s_table
 ```
 <br><br>
   
+  * CALM1-CALM2: `r CALM1_CALM2_diff`
+  * CALM1-CALM3: `r CALM1_CALM3_diff`
+  * CALM2-CALM3: `r CALM2_CALM3_diff`
+  
+#### Permutation test LV
+```{r Permutation test LV, fig.width = 10, fig.height = 6, out.width = "100%", eval = FALSE}
+median_df <- tibble()
+# n <- 10
+n <- 10000
+
+return_diff <- function(input_df, gene_a, gene_b) {
+  median_a <- input_df %>%
+    filter(gene == gene_a) %>%
+    reframe(median = median(shuffled)) %>%
+    pull()
+  median_b <- input_df %>%
+    filter(gene == gene_b) %>%
+    reframe(median = median(shuffled)) %>%
+    pull()
+  
+  diff <- median_a-median_b
+  return(diff)
+}
+
+permutation_test_pairwise <- function(
+    input_df, variable_of_interest, gene_a, gene_b, n_iterations) {
+  
+  input_df <- input_df %>%
+    filter(gene %in% c(gene_a, gene_b))
+  
+  for (i in seq(1:n_iterations)) {
+    temp_df <- input_df %>%
+      group_by(sample_name) %>%
+      
+      mutate(shuffled = sample(get(paste(variable_of_interest)), replace = FALSE),
+             iteration = i) %>% 
+      # mutate(shuffled = sample(relative_count, replace = FALSE),
+      #        iteration = i) %>%
+      ungroup()
+    
+    median_difference <- tibble(diff = return_diff(temp_df, gene_a, gene_b),
+                                iteration = i,
+                                gene_a = gene_a,
+                                gene_b = gene_b)
+    
+    median_df <- bind_rows(median_df, median_difference)
+  }
+  return(median_df)
+}
+
+set.seed(1)
+df1 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj", "CALM1", "CALM2", n)
+df2 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj", "CALM1", "CALM3", n)
+df3 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj", "CALM2", "CALM3", n)
+
+permutation_df_LV <- bind_rows(df1, df2, df3) %>%
+  mutate(comparison = paste0(gene_a, "_", gene_b))
+
+plot_hist <- function(input_df, selected_comparison) {
+  temp_df <- input_df %>%
+    filter(comparison == selected_comparison)
+  
+  gene_a = unique(temp_df$gene_a)
+  gene_b = unique(temp_df$gene_b)
+  
+  temp_df %>%
+    ggplot(aes(x = diff)) +
+    geom_histogram(color = "black",
+                   fill = "white") +
+    labs(x = "Median difference",
+         y = "Count",
+         title = paste0(gene_a, " vs ", gene_b)
+         # title = comparison
+    )
+}
+
+p1 <- plot_hist(permutation_df_LV, "CALM1_CALM2") +
+  geom_vline(xintercept = CALM1_CALM2_diff, color = "red")
+p2 <- plot_hist(permutation_df_LV, "CALM1_CALM3") +
+  geom_vline(xintercept = CALM1_CALM3_diff, color = "red")
+p3 <- plot_hist(permutation_df_LV, "CALM2_CALM3") +
+  geom_vline(xintercept = CALM2_CALM3_diff, color = "red")
+
+p1 + p2 + p3 + plot_layout(ncol = 1)
+
+range(df1$diff)
+range(df2$diff)
+range(df3$diff)
+
+df1 %>% filter(abs(diff) >= abs(CALM1_CALM2_diff)) %>% nrow()
+df2 %>% filter(abs(diff) >= abs(CALM1_CALM3_diff)) %>% nrow()
+df3 %>% filter(abs(diff) >= abs(CALM2_CALM3_diff)) %>% nrow()
+```
+
+<br><br>
 
 ### LV expression and TE
 ```{r }
@@ -1033,6 +1306,101 @@ combined_pdui_LV <- left_join(combined_pdui_LV, total_counts, by = "sample_name"
          rel_count_pdui_adj_te = counts_per_nt_pdui_adj_te/total_counts_pdui_adj_te)
 ```
 
+#### Gene expression (PDUI corrected)
+```{r Gene expression (PDUI corrected), fig.width = 10, fig.height = 6, out.width = "100%"}
+id_order <- combined_pdui_LV %>% 
+  filter(gene == "CALM3") %>% 
+  arrange(rel_count_pdui_adj) %>% 
+  pull(sample_name)
+
+bar_plot_theme <- 
+  theme(legend.text = element_text(size = 14,
+                                   face = "italic"),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+  axis.text.y = element_text(size = 14),
+  axis.title.x = element_text(size = 16),
+  axis.title.y = element_text(size = 16), 
+  legend.title = element_text(size = 14))
+  
+p1 <- combined_pdui_LV %>% 
+  ggplot(., aes(x = factor(sample_name, levels = id_order), 
+                y = rel_count_pdui_adj, fill = gene)) + 
+  geom_bar(position="fill", stat="identity") +
+  labs(fill = "Gene",
+       x = "",
+         y = "Expressed per gene", 
+       title = "Gene expression GTEx LV samples (n = 386)") +
+  scale_y_continuous(expand = c(0, 0),
+                     breaks = seq(0, 1, by = 0.1),
+                     labels = scales::percent_format()) &
+  scale_fill_manual(values = selected_colors$gene) &
+  bar_plot_theme
+
+combined_pdui_LV %>% 
+  group_by(gene) %>% 
+  reframe(min = min(rel_count_pdui_adj),
+          median = median(rel_count_pdui_adj),
+          mean = mean(rel_count_pdui_adj),
+          max = max(rel_count_pdui_adj),
+          sd = sd(rel_count_pdui_adj)) %>% 
+  s_table()
+```
+
+```{r Gene expression (PDUI corrected) 8_6, fig.width = 8, fig.height = 6, out.width = "100%"}
+p1
+```
+<br><br>
+
+```{r Gene expression (PDUI corrected) 10_4, fig.width = 10, fig.height = 4, out.width = "100%"}
+p1
+```
+<br><br>
+
+```{r Gene expression (PDUI corrected) 10_5, fig.width = 10, fig.height = 5, out.width = "100%"}
+p1
+```
+<br><br>
+
+#### Translation (PDUI corrected)
+```{r Translation (PDUI corrected), fig.width = 10, fig.height = 6, out.width = "100%"}
+id_order <- combined_pdui_LV %>% 
+  filter(gene == "CALM3") %>% 
+  arrange(rel_count_pdui_adj_te) %>% 
+  pull(sample_name)
+
+p1 <- combined_pdui_LV %>% 
+  ggplot(., aes(x = factor(sample_name, levels = id_order), 
+                y = rel_count_pdui_adj_te, fill = gene)) + 
+  geom_bar(position="fill", stat="identity") +
+  labs(fill = "Gene",
+       x = "",
+       y = "Translated per gene", 
+       title = "Translation GTEx LV samples (n = 386)") +
+  scale_y_continuous(expand = c(0, 0),
+                     breaks = seq(0, 1, by = 0.1),
+                     labels = scales::percent_format()) &
+  scale_fill_manual(values = selected_colors$gene) &
+  bar_plot_theme
+p1
+
+combined_pdui_LV %>% 
+  group_by(gene) %>% 
+  reframe(min = min(rel_count_pdui_adj_te),
+          median = median(rel_count_pdui_adj_te),
+          mean = mean(rel_count_pdui_adj_te),
+          max = max(rel_count_pdui_adj_te),
+          sd = sd(rel_count_pdui_adj_te)) %>% 
+  s_table()
+```
+<br><br>
+
+```{r Translation (PDUI corrected) 8_6, fig.width = 8, fig.height = 6, out.width = "100%"}
+p1
+```
+<br><br>
+  
+# Sort later!!!
 ```{r LV expression and TE, fig.width = 10, fig.height = 12, out.width = "80%"}
 id_order <- combined_pdui_LV %>% 
   filter(gene == "CALM3") %>% 
@@ -1047,6 +1415,12 @@ p1 <- combined_pdui_LV %>%
        x = "",
        y = "Percentage of calmodulin translated per gene", 
        title = "Counts per nt")
+
+combined_pdui_LV %>% 
+  group_by(gene) %>% 
+  reframe(mean = mean(rel_count_pdui_adj)) %>% 
+  s_table()
+
 
 p2 <- combined_pdui_LV %>% 
   ggplot(., aes(x = factor(sample_name, levels = id_order), 
@@ -1093,6 +1467,7 @@ p2 <- p2 + xlab("GTEx samples") + ggtitle("") +
 ```
 <br><br>
 
+
 #### Fraction from each indvidual based on expression and TE
 ```{r}
 combined_pdui_LV %>% 
@@ -1100,9 +1475,25 @@ combined_pdui_LV %>%
   reframe(min = min(rel_count_pdui_adj_te),
           median = median(rel_count_pdui_adj_te),
           mean = mean(rel_count_pdui_adj_te),
-          max = max(rel_count_pdui_adj_te)) %>% 
+          max = max(rel_count_pdui_adj_te),
+          sd = sd(rel_count_pdui_adj_te)) %>% 
   s_table()
+
+t1 <- combined_pdui_LV %>% 
+  group_by(gene)%>% 
+  reframe(median_relative_count = median(rel_count_pdui_adj_te))
+
+CALM1_CALM2_diff <-  t1$median_relative_count[1]-t1$median_relative_count[2]
+
+CALM1_CALM3_diff <- t1$median_relative_count[1]-t1$median_relative_count[3]
+
+CALM2_CALM3_diff <- t1$median_relative_count[2]-t1$median_relative_count[3]
 ```
+<br><br>
+  
+  * CALM1-CALM2: `r CALM1_CALM2_diff`
+  * CALM1-CALM3: `r CALM1_CALM3_diff`
+  * CALM2-CALM3: `r CALM2_CALM3_diff`
 <br><br>
   
 #### Test of signifiance
@@ -1110,45 +1501,44 @@ combined_pdui_LV %>%
 kruskal.test(rel_count_pdui_adj_te ~ gene, data = combined_pdui_LV)
 ```
 <br><br>
-  
+
+# Sort later!!!
+
+
+#### Permutation test LV TE
+```{r Permutation test LV TE, fig.width = 10, fig.height = 6, out.width = "100%", eval = FALSE}
+# n <- 10
+n <- 10000
+set.seed(1)
+df1 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj_te", "CALM1", "CALM2", n)
+df2 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj_te", "CALM1", "CALM3", n)
+df3 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj_te", "CALM2", "CALM3", n)
+
+permutation_df_LV_TE <- bind_rows(df1, df2, df3) %>%
+  mutate(comparison = paste0(gene_a, "_", gene_b))
+
+p1 <- plot_hist(permutation_df_LV_TE, "CALM1_CALM2") +
+  geom_vline(xintercept = CALM1_CALM2_diff, color = "red")
+p2 <- plot_hist(permutation_df_LV_TE, "CALM1_CALM3") +
+  geom_vline(xintercept = CALM1_CALM3_diff, color = "red")
+p3 <- plot_hist(permutation_df_LV_TE, "CALM2_CALM3") +
+  geom_vline(xintercept = CALM2_CALM3_diff, color = "red")
+
+p1 + p2 + p3 + plot_layout(ncol = 1)
+
+range(df1$diff)
+range(df2$diff)
+range(df3$diff)
+
+df1 %>% filter(abs(diff) >= abs(CALM1_CALM2_diff)) %>% nrow()
+df2 %>% filter(abs(diff) >= abs(CALM1_CALM3_diff)) %>% nrow()
+df3 %>% filter(abs(diff) >= abs(CALM2_CALM3_diff)) %>% nrow()
+```
+<br><br>
+
   
 ### All tissue expression
 ```{r All tissue expression, fig.width = 10, fig.height = 4, out.width = "100%"}
-# p1 <- combined_pdui_adj %>% 
-#   ggplot(., aes(x = smtsd, y = rel_count, fill = gene)) + 
-#   geom_bar(position="fill", stat="identity") +
-#   theme(axis.text.x = element_blank()) + 
-#   labs(title = "Counts per nt",
-#        y = "Relative gene \nexpression")
-# 
-# p2 <- combined_pdui_adj %>% 
-#   ggplot(., aes(x = smtsd, y = rel_count_pdui_adj, fill = gene)) + 
-#   geom_bar(position="fill", stat="identity") + 
-#   labs(title = "PDUI adjusted counts per nt",
-#        y = "Relative gene \nexpression")
-# 
-# p1 + p2 + plot_layout(ncol = 1, guides = "collect", axis_titles = "collect") & scale_fill_manual(values = selected_colors$gene)
-# 
-# p3 <- p2 + scale_fill_manual(values = selected_colors$gene) &
-#   theme(legend.text = element_text(face = "italic"),
-#         plot.margin = unit(c(0.2, .2, .2, 1.5), "cm"),
-#         axis.ticks.x = element_blank()) & 
-#   scale_y_continuous(expand = c(0, 0),
-#                      breaks = seq(0, 1, by = 0.2), 
-#                      labels = scales::percent_format()) &
-#   labs(fill = "Gene",
-#        x = "", 
-#        title = "",
-#        y = "Relative gene expression") &
-#   theme(
-#     axis.text.y = element_text(size = 14),
-#     axis.title.x = element_text(size = 16),
-#     axis.title.y = element_text(size = 16), 
-#     legend.text = element_text(size = 12),
-#     legend.title = element_text(size = 14)) 
-# 
-# p3
-
 df <- combined_pdui_adj %>% 
   group_by(gene, smtsd) %>% 
   reframe(median = median(rel_count_pdui_adj),
@@ -1265,7 +1655,7 @@ one_sample_wilcox_p_values <- one_sample_wilcox_p_values %>%
   mutate(significant = if_else(p.value < bonf_threshold, "sig", "not_sig"))
 
 one_sample_wilcox_p_values %>% 
-  count(gene, significant) %>% 
+  dplyr::count(gene, significant) %>% 
   s_table()
 
 tissue_summary_stats <- rel_counts_nested %>% 
@@ -1344,7 +1734,7 @@ rank_of_median_counts_per_nt_pdui_adj <- combined_pdui_adj %>%
 
 ranks <- rank_of_median_counts_per_nt_pdui_adj %>% 
     ungroup %>% 
-    count(gene, rank_of_medians) %>%
+    dplyr::count(gene, rank_of_medians) %>%
     pivot_wider(values_from = n, names_from = gene) %>% 
     mutate_all(.funs = ~ifelse(is.na(.), 0, .)) 
 
@@ -1370,7 +1760,114 @@ rank_of_median_counts_per_nt_pdui_adj %>%
 
 
 
+
+
+### Compositional data analysis
+Loading packages
+```{r, echo = TRUE}
+library(compositions)
+library(ICSNP)
+```
+
+```{r, eval = FALSE}
+writeLines(toBibtex(citation("compositions")), "C:/Users/QJ17ZB/Downloads/composistions.bib")
+writeLines(toBibtex(citation("ICSNP")), "C:/Users/QJ17ZB/Downloads/ICSNP.bib")
+```
+
+
+#### PDUI normalised gene expression
+```{r, echo = TRUE}
+d <- combined_pdui_LV %>% 
+  select(person_id = sample_name,
+         gene,
+         expression = rel_count_pdui_adj)
+
+d_wide <- d |> 
+  pivot_wider(id_cols = person_id, 
+              names_from = gene, 
+              values_from = expression)
+V <- ilrBase(D = 3)
+d_wide_ilr <- compositions::ilr(d_wide |> select(CALM1, CALM2, CALM3),
+                                V = V)
+
+Z <- as.matrix(d_wide_ilr)
+
+# OVERALL:
+HotellingsT2(Z, mu = c(0, 0))
+```
+
+```{r, echo = TRUE}
+# Posthoc:
+p.adjust(c(
+  t.test(Z[,1], mu=0)$p.value, # CALM1 = CALM2
+  t.test(Z[,2], mu=0)$p.value  # CALM3 vs geomean(CALM1, CALM2) 
+), method = "BH")
+
+# Posthoc without BH correction
+c(
+  t.test(Z[,1], mu=0)$p.value, # CALM1 = CALM2
+  t.test(Z[,2], mu=0)$p.value  # CALM3 vs geomean(CALM1, CALM2) 
+)
+```
+
+##### Means 
+```{r}
+d %>% 
+  group_by(gene) %>% 
+  reframe(mean_pdui_exp = mean(expression)) %>% 
+  s_table()
+```
+
+
+
 <br><br>
+  
+
+#### Translation (PDUI normalised)
+```{r, echo = TRUE}
+d <- combined_pdui_LV %>% 
+  select(person_id = sample_name,
+         gene,
+         translation = rel_count_pdui_adj_te)
+
+d_wide <- d |> 
+  pivot_wider(id_cols = person_id, 
+              names_from = gene, 
+              values_from = translation)
+V <- ilrBase(D = 3)
+d_wide_ilr <- compositions::ilr(d_wide |> select(CALM1, CALM2, CALM3),
+                                V = V)
+
+Z <- as.matrix(d_wide_ilr)
+
+# OVERALL:
+HotellingsT2(Z, mu = c(0, 0))
+```
+
+```{r, echo = TRUE}
+# Posthoc:
+p.adjust(c(
+  t.test(Z[,1], mu=0)$p.value, # CALM1 = CALM2
+  t.test(Z[,2], mu=0)$p.value  # CALM3 vs geomean(CALM1, CALM2) 
+), method = "BH")
+
+# Posthoc without BH correction
+c(
+  t.test(Z[,1], mu=0)$p.value, # CALM1 = CALM2
+  t.test(Z[,2], mu=0)$p.value  # CALM3 vs geomean(CALM1, CALM2) 
+)
+```
+
+##### Means 
+```{r}
+d %>% 
+  group_by(gene) %>% 
+  reframe(mean_pdui_exp = mean(translation)) %>% 
+  s_table()
+```
+
+
+
 
 ------------------------------------------------------------------------
 ```{r computetime, echo=FALSE}
