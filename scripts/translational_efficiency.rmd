@@ -592,8 +592,14 @@ p1 + selected_theme_poster
 
 #### TE among CALM1-3 (sex and status)
 ```{r TE among CALM1-3 (sex and status) 10_5, fig.width = 10, fig.height = 5, out.width = "60%"}
-p1 + facet_wrap(~status, ncol = 2)
-p1 + facet_wrap(~xist_sex, ncol = 2)
+p1 + facet_wrap(~status, ncol = 2) + theme(strip.text = element_text(size = 14))
+p1 + facet_wrap(~xist_sex, ncol = 2) + theme(strip.text = element_text(size = 14))
+
+
+p1 + facet_wrap(~xist_sex + status, ncol = 2)
+joined_df %>% 
+  distinct(id, xist_sex, status) %>%
+  dplyr::count(xist_sex, status)
 ```
 
 Median age per group is shown below:
@@ -721,22 +727,50 @@ te_wide <- joined_df_CALM %>%
   pivot_wider(names_from = gene_name, values_from = te_SvH)  
   
 plot_te <- function(gene_a, gene_b) {
-  te_wide %>% 
-    ggplot(aes(x = get(paste(gene_a)), 
-               y = get(paste(gene_b)), 
+  
+  # cor
+  correlation <- broom::tidy(
+    cor.test(
+      te_wide %>% pull(gene_a), 
+      te_wide %>% pull(gene_b), 
+      method = "spearman"))
+  # print(correlation)
+  
+  # plotting
+  te_wide %>%
+    ggplot(aes(x = get(paste(gene_a)),
+               y = get(paste(gene_b)),
                # color = status
-               )
-           ) +
+    )
+    ) +
     geom_point(size = 1, alpha = 0.5) +
-    theme(axis.text.x = element_text(size = 14),
-          axis.text.y = element_text(size = 14),
+    theme(axis.text.x = element_text(size = 15),
+          axis.text.y = element_text(size = 15),
           axis.title.x = element_text(size = 16, face = "italic"),
           axis.title.y = element_text(size = 16, face = "italic")) +
-    coord_fixed() + 
+    coord_fixed() +
     scale_y_continuous(limits = selected_limits, breaks = seq(1, 7, 2)) +
     scale_x_continuous(limits = selected_limits, breaks = seq(1, 7, 2)) +
     labs(y = gene_b,
-         x = gene_a)
+         x = gene_a) +
+    annotate("text",
+             label = paste(
+               "rho == ", round((correlation$estimate), digits = 2)),
+             x = 0.70*selected_limits[2],
+             y = 0.95*selected_limits[2],
+             hjust = 0,
+             vjust = 1, 
+             parse = TRUE, 
+             size = 5) +
+    annotate("text",
+             label = paste(
+               "italic(p) == ", round((correlation$p.value), digits = 3)),
+             x = 0.70*selected_limits[2],
+             y = 0.85*selected_limits[2],
+             hjust = 0,
+             vjust = 1, 
+             parse = TRUE, 
+             size = 5)
 }
 
 selected_limits = c(0.5, 7.25)
@@ -748,7 +782,7 @@ p3 <- plot_te("CALM2", "CALM3")
 ```
 
 
-```{r Correlations of TE among CALM1-3 2, fig.width = 5, fig.height = 10, out.width = "60%", eval = FALSE}
+```{r Correlations of TE among CALM1-3 2, fig.width = 5, fig.height = 10, out.width = "60%", eval = TRUE}
 p1 + p2 + p3 + plot_layout(ncol = 1, guides = "collect")
 ```
 
