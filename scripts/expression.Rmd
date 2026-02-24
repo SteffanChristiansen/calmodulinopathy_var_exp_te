@@ -42,9 +42,10 @@ tab_path <- here("results", "tables", title, "/")
 # global options
 opts_knit$set(root.dir = root_path)
 opts_chunk$set(message = FALSE,
-               dpi = 300,
-               dev = "jpeg",
-               # dev = "svg",
+               # dpi = 300,
+               dpi = 1200,
+               # dev = "jpeg",
+               dev = "svg",
                fig.width = 6,
                fig.height = 6,
                fig.align="center", 
@@ -497,6 +498,14 @@ plot_mane_fraction <- function(gene_name){
     # ggplot(aes(y = fraction_TPM, x = transcript, color = MANE_status)) +
     geom_boxplot(outlier.shape = NA, alpha = 0.2) +
     geom_jitter(width = 0.2, size = 2.5, alpha = 1, height = 0) +
+    theme(axis.text.x = element_text(size = 12, angle = 0, hjust = 0.5),
+        axis.text.y = element_text(size = 14),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        panel.spacing = unit(0.5, "cm")) +
+  theme(legend.position = "none") +
     # scale_color_manual(values = selected_colors$MANE_status) +
     labs(
       x = "",
@@ -512,16 +521,7 @@ p_comb <- p1 + p2 + p3 + plot_layout(ncol = 3, guides = "collect", axes = "colle
   scale_y_continuous(
     limits = c(0.975, 1),
                      breaks = seq(0.975, 1, by = 0.005),
-                     labels = scales::percent_format()) &
-  theme(axis.text.x = element_text(size = 12, angle = 0, hjust = 0.5),
-        axis.text.y = element_text(size = 14),
-        axis.title.x = element_text(size = 16),
-        axis.title.y = element_text(size = 16),
-        legend.title = element_text(size = 16),
-        legend.text = element_text(size = 14),
-        panel.spacing = unit(0.5, "cm")) &
-  theme(legend.position = "none")
-
+                     labels = scales::percent_format())
 p_comb
 ```
 
@@ -688,7 +688,9 @@ plot_pdui_distribution <- function(selected_gene) {
     theme(legend.position = "none", 
           plot.margin = unit(c(0.2, 0.2, 0.2, 1.5), "cm"),
           plot.title = element_text(size = 12),
-          strip.text = element_text(face = "italic")) +
+          strip.text = element_text(face = "italic"),
+          axis.text.y = element_text(size = 14),
+        axis.title.y = element_text(size = 16)) +
     scale_color_manual(values = selected_colors$tissue) + 
     labs(title = bquote(~italic(.(selected_gene))),
          y = "Percentage of distal poly(A) site usage index (PDUI)",
@@ -703,9 +705,7 @@ for (i in 1:3) {
 p1 + p2 + p3 +
   plot_layout(ncol = 1, guides = "collect", axes = "collect") & 
   scale_y_continuous(limits = c(0,1.01)) &
-  scale_x_discrete(labels = function(x) str_replace_all(x, "_", " ")) & 
-  theme(axis.text.y = element_text(size = 14),
-        axis.title.y = element_text(size = 16))
+  scale_x_discrete(labels = function(x) str_replace_all(x, "_", " ")) 
 ```
 <br><br>
   
@@ -1026,9 +1026,10 @@ p2 + theme(legend.position = "none") +
   p4 +
   theme(axis.title.x = element_blank()) + 
   theme(axis.text.x = element_text(size = 14, angle = 0, hjust = 0.5)) +
-  plot_layout(ncol = 2, guides = "collect") &
-  theme(panel.spacing = unit(0.1, "lines"),
-        plot.margin = unit(c(0.1, 0.5, 0.1, 0.1), "cm")) + 
+  plot_layout(ncol = 2, guides = "collect")  + 
+# &
+#   theme(panel.spacing = unit(0.1, "lines"),
+        # plot.margin = unit(c(0.1, 0.5, 0.1, 0.1), "cm")) +
   theme(strip.text = element_text(size = 10)) 
 ```
 <br><br>
@@ -1330,11 +1331,12 @@ p1 <- combined_pdui_LV %>%
   labs(fill = "Gene",
        x = "",
          y = "Expressed per gene", 
-       title = "Gene expression GTEx LV samples (n = 386)") +
+       # title = "Gene expression GTEx LV samples (n = 386)"
+       ) +
   scale_y_continuous(expand = c(0, 0),
                      breaks = seq(0, 1, by = 0.1),
-                     labels = scales::percent_format()) &
-  scale_fill_manual(values = selected_colors$gene) &
+                     labels = scales::percent_format()) +
+  scale_fill_manual(values = selected_colors$gene) +
   bar_plot_theme
 
 combined_pdui_LV %>% 
@@ -1347,17 +1349,23 @@ combined_pdui_LV %>%
   s_table()
 ```
 
-```{r Gene expression (PDUI corrected) 8_6, fig.width = 8, fig.height = 6, out.width = "100%"}
+```{r Gene expression (PDUI corrected) 8_6, fig.width = 8, fig.height = 6, out.width = "100%", eval = FALSE}
 p1
 ```
 <br><br>
+
+```{r Gene expression (PDUI corrected) 6_6, fig.width = 6, fig.height = 6, out.width = "100%"}
+p1
+```
+<br><br>
+
 
 ```{r Gene expression (PDUI corrected) 10_4, fig.width = 10, fig.height = 4, out.width = "100%"}
 p1
 ```
 <br><br>
 
-```{r Gene expression (PDUI corrected) 10_5, fig.width = 10, fig.height = 5, out.width = "100%"}
+```{r Gene expression (PDUI corrected) 10_5, fig.width = 10, fig.height = 5, out.width = "100%", eval = FALSE}
 p1
 ```
 <br><br>
@@ -1376,11 +1384,12 @@ p1 <- combined_pdui_LV %>%
   labs(fill = "Gene",
        x = "",
        y = "Translated per gene", 
-       title = "Translation GTEx LV samples (n = 386)") +
+       # title = "Translation GTEx LV samples (n = 386)"
+       ) +
   scale_y_continuous(expand = c(0, 0),
                      breaks = seq(0, 1, by = 0.1),
-                     labels = scales::percent_format()) &
-  scale_fill_manual(values = selected_colors$gene) &
+                     labels = scales::percent_format()) +
+  scale_fill_manual(values = selected_colors$gene) +
   bar_plot_theme
 p1
 
@@ -1395,78 +1404,15 @@ combined_pdui_LV %>%
 ```
 <br><br>
 
-```{r Translation (PDUI corrected) 8_6, fig.width = 8, fig.height = 6, out.width = "100%"}
+```{r Translation (PDUI corrected) 8_6, fig.width = 8, fig.height = 6, out.width = "100%", eval = FALSE}
 p1
 ```
 <br><br>
-  
-# Sort later!!!
-```{r LV expression and TE, fig.width = 10, fig.height = 12, out.width = "80%"}
-id_order <- combined_pdui_LV %>% 
-  filter(gene == "CALM3") %>% 
-  arrange(rel_count_pdui_adj_te) %>% 
-  pull(sample_name)
 
-p1 <- combined_pdui_LV %>% 
-  ggplot(., aes(x = factor(sample_name, levels = id_order), 
-                y = rel_count_te, fill = gene)) + 
-  geom_bar(position="fill", stat="identity") +
-  labs(fill = "Gene",
-       x = "",
-       y = "Percentage of calmodulin translated per gene", 
-       title = "Counts per nt")
-
-combined_pdui_LV %>% 
-  group_by(gene) %>% 
-  reframe(mean = mean(rel_count_pdui_adj)) %>% 
-  s_table()
-
-
-p2 <- combined_pdui_LV %>% 
-  ggplot(., aes(x = factor(sample_name, levels = id_order), 
-                y = rel_count_pdui_adj_te, fill = gene)) + 
-  geom_bar(position="fill", stat="identity") +
-  labs(fill = "Gene",
-       x = "",
-       y = "Percentage of calmodulin translated per gene", 
-       title = "PDUI adjusted counts per nt")
-
-p1 + p2 + plot_layout(ncol = 1, guides = "collect", axes = "collect") &
-  scale_y_continuous(expand = c(0, 0),
-                     breaks = seq(0, 1, by = 0.1),
-                     labels = scales::percent_format()) &
-  scale_fill_manual(values = selected_colors$gene) &
-  theme(legend.text = element_text(face = "italic"),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_blank()) 
-```
-
-```{r LV expression and TE 6, fig.width = 8, fig.height = 6, out.width = "80%"}
-p2 <- p2 + xlab("GTEx samples") + ggtitle("") + 
-  scale_y_continuous(expand = c(0, 0),
-                     breaks = seq(0, 1, by = 0.1),
-                     labels = scales::percent_format()) &
-  scale_fill_manual(values = selected_colors$gene) &
-  theme(legend.text = element_text(face = "italic"),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_blank()) +
-  theme(
-  axis.text.y = element_text(size = 14),
-  axis.title.x = element_text(size = 16),
-  axis.title.y = element_text(size = 16), 
-  legend.text = element_text(size = 14),
-  legend.title = element_text(size = 14))
-# p2
-```
-
-
-```{r LV expression and TE 9_6, fig.width = 9, fig.height = 6, out.width = "80%"}
-# p2 + selected_theme_poster + theme(legend.text = element_text(face = "italic"),
-#         axis.text.x = element_blank(),
-#         axis.ticks.x = element_blank())
+```{r Translation (PDUI corrected) 6_6, fig.width = 6, fig.height = 6, out.width = "100%"}
+p1
 ```
 <br><br>
-
 
 #### Fraction from each indvidual based on expression and TE
 ```{r}
@@ -1501,41 +1447,6 @@ CALM2_CALM3_diff <- t1$median_relative_count[2]-t1$median_relative_count[3]
 kruskal.test(rel_count_pdui_adj_te ~ gene, data = combined_pdui_LV)
 ```
 <br><br>
-
-# Sort later!!!
-
-
-#### Permutation test LV TE
-```{r Permutation test LV TE, fig.width = 10, fig.height = 6, out.width = "100%", eval = FALSE}
-# n <- 10
-n <- 10000
-set.seed(1)
-df1 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj_te", "CALM1", "CALM2", n)
-df2 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj_te", "CALM1", "CALM3", n)
-df3 <- permutation_test_pairwise(combined_pdui_LV, "rel_count_pdui_adj_te", "CALM2", "CALM3", n)
-
-permutation_df_LV_TE <- bind_rows(df1, df2, df3) %>%
-  mutate(comparison = paste0(gene_a, "_", gene_b))
-
-p1 <- plot_hist(permutation_df_LV_TE, "CALM1_CALM2") +
-  geom_vline(xintercept = CALM1_CALM2_diff, color = "red")
-p2 <- plot_hist(permutation_df_LV_TE, "CALM1_CALM3") +
-  geom_vline(xintercept = CALM1_CALM3_diff, color = "red")
-p3 <- plot_hist(permutation_df_LV_TE, "CALM2_CALM3") +
-  geom_vline(xintercept = CALM2_CALM3_diff, color = "red")
-
-p1 + p2 + p3 + plot_layout(ncol = 1)
-
-range(df1$diff)
-range(df2$diff)
-range(df3$diff)
-
-df1 %>% filter(abs(diff) >= abs(CALM1_CALM2_diff)) %>% nrow()
-df2 %>% filter(abs(diff) >= abs(CALM1_CALM3_diff)) %>% nrow()
-df3 %>% filter(abs(diff) >= abs(CALM2_CALM3_diff)) %>% nrow()
-```
-<br><br>
-
   
 ### All tissue expression
 ```{r All tissue expression, fig.width = 10, fig.height = 4, out.width = "100%"}
@@ -1561,25 +1472,24 @@ p2 <- df %>%
                  position = position_dodge(width = 0.8), linewidth = 0.75, alpha = 0.75)
 
 p3 <- p2 + 
-  scale_color_manual(values = selected_colors$gene) &
-  theme(legend.text = element_text(face = "italic"),
-        plot.margin = unit(c(0.2, .2, .2, 1.5), "cm"),
-        axis.ticks.x = element_blank()) & 
+  scale_color_manual(values = selected_colors$gene) + 
   scale_y_continuous(expand = c(0, 0),
                      breaks = seq(0, 1, by = 0.2), 
                      labels = scales::percent_format(),
-                     limits = c(0,0.85)) &
-  labs(color = "Gene",
-    fill = "Gene",
-       x = "", 
-       title = "",
-       y = "Relative gene \nexpression") &
+                     limits = c(0,0.85)) +
   theme(
+    legend.text = element_text(size = 12, face = "italic"),
+    plot.margin = unit(c(0.2, .2, .2, 1.5), "cm"),
+    axis.ticks.x = element_blank(),
     axis.text.y = element_text(size = 14),
     axis.title.x = element_text(size = 16),
     axis.title.y = element_text(size = 16), 
-    legend.text = element_text(size = 12),
-    legend.title = element_text(size = 14)) 
+    legend.title = element_text(size = 14)) +
+  labs(color = "Gene",
+       # fill = "Gene",
+       x = "", 
+       title = "",
+       y = "Relative gene \nexpression")
 
 p3
 ```
