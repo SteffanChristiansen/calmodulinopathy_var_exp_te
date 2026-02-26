@@ -830,6 +830,7 @@ df %>%
 ```
 <br><br>
 
+
 #### TE heatmaps
 Heatmap with absolute values and with z-scores to the left
 ```{r TE heatmaps, fig.width = 10, fig.height = 6, out.width = "80%"}
