@@ -794,7 +794,6 @@ p3 <- plot_te("CALM2", "CALM3")
 p1 + p2 + p3 + plot_layout(ncol = 1, guides = "collect")
 ```
 
-
 ```{r}
 df <- data.frame(gene_a = c("CALM1", "CALM1", "CALM2"),
                  gene_b = c("CALM2", "CALM3", "CALM3"))
