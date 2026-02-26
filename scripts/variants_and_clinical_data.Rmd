@@ -40,9 +40,10 @@ tab_path <- here("results", "tables", title, "/")
 # global options
 opts_knit$set(root.dir = root_path)
 opts_chunk$set(message = FALSE,
-               dpi = 300,
-               # dev = "svg",
-               dev = "jpeg",
+               # dpi = 300,
+               dpi = 1200,
+               # dev = "jpeg",
+               dev = "svg",
                fig.width = 6,
                fig.height = 6,
                fig.align="center", 
@@ -166,7 +167,8 @@ p1 <- clin_char_long %>%
   geom_text(aes(label = numbers_CE),
             position = position_stack(vjust = 1.05), # or vjust = 1.05 for above bars
             # color = "black", size = 8) + # settings for poster
-            color = "black", size = 4) + # settings for paper
+            color = "black", size = 6) + # settings for graphical abstrac
+            # color = "black", size = 4) + # settings for paper
    labs(x = "", 
         y = "Missense carriers with any cardiac event",
         title = "All carriers (n = 140)") +
@@ -208,7 +210,10 @@ p2 <- clin_char_phenotyped_long %>%
             color = "black", size = 4) +
   selected_theme +
   theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank()) 
+        axis.ticks.x = element_blank(),
+        legend.position = "none") +
+  labs(x = "",
+       y = "")
 
 p3 <- clin_char_phenotyped_long %>% 
   filter(event_type != "frac_MAE") %>% 
@@ -221,13 +226,15 @@ p3 <- clin_char_phenotyped_long %>%
   selected_theme +
   theme(axis.text.x = element_text(face = "italic",
                                    hjust = 0.5),
-        legend.position = "none")
+        legend.position = "none") +
+  labs(x = "",
+       y = "")
 
 combined <- p2 + ggtitle("LQTS phenotype (n = 74)") +
   p3 + ggtitle("CPVT phenotype (n = 36)") + 
   plot_layout(ncol = 1, guides = "collect",  axes = "collect") &
-  labs(x = "",
-       y = "") &
+  # labs(x = "",
+  #      y = "") &
   scale_y_continuous(
     labels = scales::label_percent(), 
     breaks = seq(0, 1, by = 0.250)) 
@@ -236,8 +243,9 @@ p4 <- p1 +
   combined + 
   plot_layout(ncol = 2, guides = "collect",  axes = "collect") &
   plot_annotation(title = "International Calmodulinopathy Registry (v2)") & 
-  scale_fill_manual(values = selected_colors$gene) &
-  theme(legend.position = "none") 
+  scale_fill_manual(values = selected_colors$gene) 
+# &
+#   theme(legend.position = "none") 
 
 p4
 ```
@@ -249,10 +257,11 @@ p4
 
 ```{r Any event 5_6, fig.width = 5, fig.height = 6, out.width = "100%"}
 p1 <- p1 + 
-  ggtitle("International Calmodulinopathy Registry (v2)") & 
-  scale_fill_manual(values = selected_colors$gene) &
+  # ggtitle("International Calmodulinopathy Registry (v2)") +
+  ggtitle("") +
+  scale_fill_manual(values = selected_colors$gene) +
   theme(legend.position = "none") 
-# p1
+p1
 
 selected_theme_poster <- theme(
   axis.text.y = element_text(size = 18),
@@ -266,6 +275,10 @@ selected_theme_poster <- theme(
 # p1 + selected_theme_poster
 ```
 <br><br>
+
+```{r Any event 6_5, fig.width = 6, fig.height = 5, out.width = "100%", eval = FALSE}
+p1
+```
 
 ```{r Any event 7_7, fig.width = 7, fig.height = 7, out.width = "100%"}
 p1 + selected_theme_poster
@@ -298,7 +311,7 @@ fisher.test(t2)
 
 
 #### Comparison any event and MAE
-```{r Comparison any event and MAE, fig.width = 6, fig.height = 6, out.width = "100%"}
+```{r Comparison any event and MAE, fig.width = 6, fig.height = 6, out.width = "100%", eval = FALSE}
 p1 <- clin_char_long %>% 
   filter(event_type != "frac_MAE") %>% 
   mutate(event_type = str_replace_all(event_type, 
@@ -396,7 +409,11 @@ p1 <- v4_cam_conf_scores %>%
   selected_theme 
 ```
 
-```{r GnomAD variants 5_5, fig.width = 5, fig.height = 5, out.width = "100%"}
+```{r GnomAD variants 5_5, fig.width = 5, fig.height = 5, out.width = "100%", eval = FALSE}
+p1
+```
+
+```{r GnomAD variants 5_4, fig.width = 5, fig.height = 4, out.width = "100%"}
 p1
 ```
 

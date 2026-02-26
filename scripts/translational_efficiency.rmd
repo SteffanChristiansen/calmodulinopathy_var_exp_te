@@ -30,9 +30,10 @@ require("knitr")
 opts_knit$set(root.dir = root_path)
 opts_chunk$set(warning = TRUE,
                message = FALSE,
-               dpi = 300,
-               # dev = "svg",
-               dev = "jpeg",
+               # dpi = 300,
+               dpi = 1200,
+               # dev = "jpeg",
+               dev = "svg",
                fig.width = 6,
                fig.height = 6,
                fig.align="center", 
@@ -585,10 +586,17 @@ p1
 ```
 The rank of medians are unchanged if analysis is stratified by disease status. <br>
 
-```{r TE among CALM1-3 5_6, fig.width = 5, fig.height = 6, out.width = "60%"}
+```{r TE among CALM1-3 5_6, fig.width = 5, fig.height = 6, out.width = "60%", eval = FALSE}
 p1 + selected_theme_poster
 ```
 <br><br>
+
+```{r TE among CALM1-3 5_4, fig.width = 5, fig.height = 4, out.width = "60%"}
+p1
+```
+<br><br>
+
+
 
 #### TE among CALM1-3 (sex and status)
 ```{r TE among CALM1-3 (sex and status) 10_5, fig.width = 10, fig.height = 5, out.width = "60%"}
