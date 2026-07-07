@@ -1351,10 +1351,16 @@ combined_pdui_LV %>%
 
 ```{r Gene expression (PDUI corrected) 8_6, fig.width = 8, fig.height = 6, out.width = "100%", eval = FALSE}
 p1
+p1 + xlab("Left ventricle samples (n = 386)") 
 ```
 <br><br>
 
-```{r Gene expression (PDUI corrected) 6_6, fig.width = 6, fig.height = 6, out.width = "100%"}
+```{r Gene expression (PDUI corrected) 5_4, fig.width = 5, fig.height = 4, out.width = "100%"}
+p1 + xlab("Left ventricle samples (n = 386)") 
+```
+
+
+```{r Gene expression (PDUI corrected) 6_6, fig.width = 6, fig.height = 6, out.width = "100%", eval = FALSE}
 p1
 ```
 <br><br>
